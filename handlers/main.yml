@@ -1,0 +1,5 @@
+# (c) Copyright 2016 DataNexus Inc.  All Rights Reserved. 
+---
+- name: restart postgresql
+  become: yes
+  systemd: "name={{ postgresql_daemon }} state=restarted"

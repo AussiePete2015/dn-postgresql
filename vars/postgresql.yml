@@ -1,0 +1,17 @@
+# (c) 2016 DataNexus Inc.  All Rights Reserved.
+---
+# default variables from datanexus
+
+application: postgresql
+postgresql_version: "9.2.18-1.el7"
+python_postgres_adapter_version: "2.5.1-3.el7"
+postgresql_package_list:
+  - "python-psycopg2-{{ python_postgres_adapter_version }}"
+  - "postgresql-{{ postgresql_version }}"
+  - "postgresql-server-{{ postgresql_version }}"
+  - "postgresql-contrib-{{ postgresql_version }}"
+  - "postgresql-libs-{{ postgresql_version }}"
+postgresql_data_dir: "/var/lib/pgsql/data"
+postgresql_bin_path: "/usr/bin"
+postgresql_config_path: "/var/lib/pgsql/data"
+postgresql_daemon: postgresql

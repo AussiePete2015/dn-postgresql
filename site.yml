@@ -1,0 +1,6 @@
+# (c) 2016 DataNexus Inc.  All Rights Reserved. 
+---
+- hosts: "{{ host_inventory }}"
+  roles:
+    - { role: dn-postgresql/common/roles/install-packages, package_list: "{{ postgres_package_list }}" }
+    - { role: dn-postgresql }
