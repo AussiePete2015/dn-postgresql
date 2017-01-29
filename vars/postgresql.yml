@@ -11,7 +11,7 @@ postgresql_package_list:
   - "postgresql-server-{{ postgresql_version }}"
   - "postgresql-contrib-{{ postgresql_version }}"
   - "postgresql-libs-{{ postgresql_version }}"
-postgresql_data_dir: "/var/lib/pgsql/data"
+postgresql_data_dir: "/data/pgsql"
 postgresql_bin_path: "/usr/bin"
 postgresql_config_path: "/var/lib/pgsql/data"
 postgresql_daemon: postgresql

@@ -1,6 +1,11 @@
-# (c) 2016 DataNexus Inc.  All Rights Reserved. 
+# (c) 2016 DataNexus Inc.  All Rights Reserved.
+#
+# Default manifest for installing postgresql instance(s) standalone
+# AWS_PROFILE=datanexus ansible-playbook -e "project=demo application=postgresql domain=development ec2_instance_type=t2.micro host_inventory=tag_Application_{{ application }} ansible_user=centos" site.yml
 ---
 - hosts: "{{ host_inventory }}"
+  vars_files:
+    - vars/postgresql.yml
   roles:
-    - { role: dn-postgresql/common/roles/install-packages, package_list: "{{ postgres_package_list }}" }
+    - { role: install-packages, package_list: "{{ postgresql_package_list }}" }
     - { role: dn-postgresql }
