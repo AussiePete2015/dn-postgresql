@@ -13,5 +13,7 @@ postgresql_package_list:
   - "postgresql-libs-{{ postgresql_version }}"
 postgresql_data_dir: "/data/pgsql"
 postgresql_bin_path: "/usr/bin"
-postgresql_config_path: "/var/lib/pgsql/data"
+#postgresql_config_path: "/var/lib/pgsql/data"
+postgresql_config_path: "{{ postgresql_data_dir }}"
 postgresql_daemon: postgresql
+postgresql_interface: eth1

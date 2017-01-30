@@ -3,7 +3,18 @@
 # Facts configuration.
 - include: facts.yml
   static: no
-      
+
+- name: apply postgresql customizations
+  become: true
+  blockinfile:
+    name: /etc/systemd/system/postgresql.service
+    mode: 0644
+    create: yes
+    block: |
+      .include /lib/systemd/system/postgresql.service
+      [Service]
+      Environment=PGDATA={{ postgresql_data_dir }}      
+
 # initialize
 - name: Set PostgreSQL environment variables.
   template:
@@ -27,15 +38,34 @@
     path: "{{ postgresql_data_dir }}/PG_VERSION"
   become: true
   register: pgdata_dir_version
-  
-  
+
 - name: Ensure PostgreSQL database is initialized.
   command: "{{ postgresql_bin_path }}/initdb -D {{ postgresql_data_dir }}"
   when: not pgdata_dir_version.stat.exists
   become: true
   become_user: "{{ postgresql_user }}"
+  
+- name: Listen on interface for data network; defaults to eth1
+  lineinfile:
+    dest: "{{ postgresql_config_path }}/postgresql.conf"
+    regexp: "^#listen_addresses"
+    line: "listen_addresses = '{{ item }}'\t# what IP address(es) to listen on;"
+  with_items: "{{ postgresql_addr }}"
+  become: true
+  notify: restart postgresql
 
-# configure
+- name: get data network for the trusted listener
+  shell: "/usr/sbin/ip addr list {{ postgresql_interface }} | grep -w 'inet' | cut -d' ' -f8 | sed 's/255/0/g'"
+  register: data_network
+  
+- name: Set trusted listener on data network
+  lineinfile:
+    dest: "{{ postgresql_config_path }}/pg_hba.conf"
+    regexp: "^host    all             all             127.0.0.1/32            trust"
+    line: "host    all             all             {{ data_network.stdout }}/24            trust"
+  become: true
+  notify: restart postgresql
+    
 - name: Configure global settings.
   lineinfile:
     dest: "{{ postgresql_config_path }}/postgresql.conf"
@@ -56,10 +86,18 @@
   with_items: "{{ postgresql_unix_socket_directories }}"
   become: true
 
+- name: Update SE Linux enforcing mode
+  become: true
+  command: "/sbin/semanage fcontext -a -t postgresql_db_t \"{{ postgresql_data_dir }}(/.*)?\""
+      
+- name: Restore SE Linux security context
+  become: true
+  command: "/sbin/restorecon -R {{ postgresql_data_dir }}"
+
 - name: Ensure PostgreSQL is started and enabled on boot.
   systemd: "name={{ postgresql_daemon }} state=started enabled=True"
   become: true
-
+  
 # Configure PostgreSQL.
 - name: Ensure PostgreSQL databases are present.
   postgresql_db:
