@@ -2,6 +2,11 @@
 ---
 - name: Define postgresql_version.
   set_fact:
+    postgresql_addr: "{{ postgresql_addr }}"
+  when: postgresql_interface is not defined
+
+- name: Define postgresql_version.
+  set_fact:
     postgresql_version: "{{ postgresql_version }}"
   when: postgresql_version is not defined
 
