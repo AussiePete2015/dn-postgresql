@@ -10,3 +10,16 @@
     - { role: install-packages, package_list: "{{ postgresql_package_list }}" }
     - { role: get-iface-addr, iface_name: "{{ postgresql_interface }}" }
     - { role: dn-postgresql, postgresql_addr: "{{ iface_addr }}" }
+
+- hosts: "{{ host_inventory }}:&tag_Role_master"
+  vars_files:
+    - vars/postgresql.yml
+  roles:
+    - { role: master-streaming }
+
+- hosts: "{{ host_inventory }}:&tag_Role_replica"
+  vars_files:
+    - vars/postgresql.yml
+  roles:
+    - { role: replica-streaming }
+    

@@ -16,7 +16,7 @@
       Environment=PGDATA={{ postgresql_data_dir }}      
 
 # initialize
-- name: Set PostgreSQL environment variables.
+- name: Set PostgreSQL environment variables
   template:
     src: postgres.sh.j2
     dest: /etc/profile.d/postgres.sh
@@ -33,13 +33,13 @@
     mode: 0700
   become: true
 
-- name: Check if PostgreSQL database is initialized.
+- name: Check if PostgreSQL database is initialized
   stat:
     path: "{{ postgresql_data_dir }}/PG_VERSION"
   become: true
   register: pgdata_dir_version
 
-- name: Ensure PostgreSQL database is initialized.
+- name: Ensure PostgreSQL database is initialized
   command: "{{ postgresql_bin_path }}/initdb -D {{ postgresql_data_dir }}"
   when: not pgdata_dir_version.stat.exists
   become: true
@@ -76,7 +76,7 @@
   become: true
   notify: restart postgresql
   
-- name: Ensure PostgreSQL unix socket dirs exist.
+- name: Ensure PostgreSQL unix socket dirs exist
   file:
     path: "{{ item }}"
     state: directory
@@ -94,12 +94,12 @@
   become: true
   command: "/sbin/restorecon -R {{ postgresql_data_dir }}"
 
-- name: Ensure PostgreSQL is started and enabled on boot.
+- name: Ensure PostgreSQL is started and enabled on boot
   systemd: "name={{ postgresql_daemon }} state=started enabled=True"
   become: true
   
 # Configure PostgreSQL.
-- name: Ensure PostgreSQL databases are present.
+- name: Ensure PostgreSQL databases are present
   postgresql_db:
     name: "{{ item.name }}"
     lc_collate: "{{ item.lc_collate | default('en_US.UTF-8') }}"
@@ -116,7 +116,7 @@
   become: true
   become_user: "{{ postgresql_user }}"
 
-- name: Ensure PostgreSQL users are present.
+- name: Ensure PostgreSQL users are present
   postgresql_user:
     name: "{{ item.name }}"
     password: "{{ item.password | default(omit) }}"
@@ -129,7 +129,8 @@
     login_unix_socket: "{{ item.login_unix_socket | default(postgresql_unix_socket_directories[0]) }}"
     port: "{{ item.port | default(omit) }}"
     state: "{{ item.state | default('present') }}"
-  with_items: "{{ postgresql_users }}"
+  with_items: "{{ postgresql_users  }}"
   no_log: true
   become: true
   become_user: "{{ postgresql_user }}"
+  

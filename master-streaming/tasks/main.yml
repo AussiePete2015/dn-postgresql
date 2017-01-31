@@ -1,0 +1,68 @@
+# (c) Copyright 2016 DataNexus Inc.  All Rights Reserved. 
+#
+# streaming tasks for the master
+---
+- name: adding replication user
+  tags:
+    - master
+  postgresql_user:
+    name: "{{ item.name }}"
+    password: "{{ item.password | default(omit) }}"
+    priv: "{{ item.priv | default(omit) }}"
+    role_attr_flags: "{{ item.role_attr_flags | default(omit) }}"
+    db: "{{ item.db | default(omit) }}"
+    login_host: "{{ item.login_host | default('localhost') }}"
+    login_password: "{{ item.login_password | default(omit) }}"
+    login_user: "{{ item.login_user | default(postgresql_user) }}"
+    login_unix_socket: "{{ item.login_unix_socket | default(postgresql_unix_socket_directories[0]) }}"
+    port: "{{ item.port | default(omit) }}"
+    state: "{{ item.state | default('present') }}"
+  with_items: "{{ replication_users  }}"
+  no_log: true
+  become: true
+  become_user: "{{ postgresql_user }}"
+
+- name: configure write ahead log for streaming
+  lineinfile:
+    dest: "{{ postgresql_config_path }}/postgresql.conf"
+    regexp: "^#wal_level"
+    line: "wal_level = hot_standby\t\t\t# minimal, archive, or hot_standby"
+  become: true
+  notify: restart postgresql
+
+- name: configure write ahead log senders
+  lineinfile:
+    dest: "{{ postgresql_config_path }}/postgresql.conf"
+    regexp: "^#max_wal_senders"
+    line: "max_wal_senders = 3\t\t# max number of walsender processes"
+  become: true
+  notify: restart postgresql
+
+- name: configure checkpoint segments
+  lineinfile:
+    dest: "{{ postgresql_config_path }}/postgresql.conf"
+    regexp: "^#checkpoint_segments"
+    line: "checkpoint_segments = 8\t\t\t# in logfile segments, min 1, 16MB each"
+  become: true
+  notify: restart postgresql
+  
+- name: configure write ahead log keep segments
+  lineinfile:
+    dest: "{{ postgresql_config_path }}/postgresql.conf"
+    regexp: "^#wal_keep_segments"
+    line: "wal_keep_segments = 8\t\t# in logfile segments, 16MB each; 0 disables"
+  become: true
+  notify: restart postgresql
+  
+- set_fact: replica_server={{ hostvars[inventory_hostname].groups.tag_Role_replica[0] }}
+#- debug: msg="rep = {{ replica_server }}"
+#- debug: msg="{{ hostvars['13.54.168.133'].ansible_eth1.ipv4.address }}"
+#- debug: msg="{{ hostvars[replica_server].ansible_eth1.ipv4.address }}"
+
+- name: Configure replication user
+  lineinfile:
+    dest: "{{ postgresql_config_path }}/pg_hba.conf"
+    line: "host     replication     replicator      {{ hostvars[replica_server].ansible_eth1.ipv4.address }}/32          trust"
+    state: present
+  become: true
+  notify: restart postgresql  
