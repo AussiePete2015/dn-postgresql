@@ -87,10 +87,15 @@
   become: true
 
 - name: Update SE Linux enforcing mode
+  sefcontext:
+    target: "{{ postgresql_data_dir }}(/.*)?"
+    setype: postgresql_db_t
+    state: present
+    reload: true
   become: true
-  command: "/sbin/semanage fcontext -a -t postgresql_db_t \"{{ postgresql_data_dir }}(/.*)?\""
   when: ansible_selinux.status == "enabled"
       
+# sefcontent does not restore the context, so we need another step       
 - name: Restore SE Linux security context
   become: true
   command: "/sbin/restorecon -R {{ postgresql_data_dir }}"
