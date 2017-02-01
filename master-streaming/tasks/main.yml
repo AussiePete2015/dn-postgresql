@@ -55,9 +55,7 @@
   notify: restart postgresql
   
 - set_fact: replica_server={{ hostvars[inventory_hostname].groups.tag_Role_replica[0] }}
-#- debug: msg="rep = {{ replica_server }}"
-#- debug: msg="{{ hostvars['13.54.168.133'].ansible_eth1.ipv4.address }}"
-#- debug: msg="{{ hostvars[replica_server].ansible_eth1.ipv4.address }}"
+  when: hostvars[inventory_hostname].groups.tag_Role_replica[0] is defined
 
 - name: Configure replication user
   lineinfile:
@@ -66,3 +64,4 @@
     state: present
   become: true
   notify: restart postgresql  
+  when: replica_server is defined
