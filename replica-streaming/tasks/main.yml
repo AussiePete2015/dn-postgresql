@@ -50,6 +50,7 @@
 - name: Fix SE Linux labels on {{ postgresql_data_dir }}
   become: true
   command: "/usr/sbin/fixfiles -F restore \"{{ postgresql_data_dir }}\""
+  when: ansible_selinux.status == "enabled"
   
 - name: configure write ahead log for streaming
   lineinfile:
