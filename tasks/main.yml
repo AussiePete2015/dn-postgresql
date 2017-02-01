@@ -89,11 +89,13 @@
 - name: Update SE Linux enforcing mode
   become: true
   command: "/sbin/semanage fcontext -a -t postgresql_db_t \"{{ postgresql_data_dir }}(/.*)?\""
+  when: ansible_selinux.status == "enabled"
       
 - name: Restore SE Linux security context
   become: true
   command: "/sbin/restorecon -R {{ postgresql_data_dir }}"
-
+  when: ansible_selinux.status == "enabled"
+  
 - name: Ensure PostgreSQL is started and enabled on boot
   systemd: "name={{ postgresql_daemon }} state=started enabled=True"
   become: true
