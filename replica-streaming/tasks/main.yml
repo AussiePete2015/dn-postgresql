@@ -23,12 +23,14 @@
     mode: 0700
   become: true
   
-- set_fact: replica_server={{ hostvars[inventory_hostname].groups.tag_Role_master[0] }}
+- set_fact: master_server={{ hostvars[inventory_hostname].groups.tag_Role_master[0] }}
+  when: hostvars[inventory_hostname].groups.tag_Role_master[0] is defined
 
 - name: copy initial database
-  command: "/bin/pg_basebackup -h {{ hostvars[replica_server].ansible_eth1.ipv4.address }} -D {{ postgresql_data_dir }} -U replicator -v -P --xlog-method=stream"
+  command: "/bin/pg_basebackup -h {{ hostvars[master_server].ansible_eth1.ipv4.address }} -D {{ postgresql_data_dir }} -U replicator -v -P --xlog-method=stream"
   become: true
   become_user: "{{ postgresql_user }}"
+  when: master_server is defined
 
 - name: Restore postgresql.conf
   command: /bin/cp /tmp/postgresql.conf {{ postgresql_config_path }}
@@ -42,10 +44,11 @@
     create: yes
     block: |
       standby_mode = 'on'
-      primary_conninfo = 'host={{ hostvars[replica_server].ansible_eth1.ipv4.address }} port=5432 user=replicator'
+      primary_conninfo = 'host={{ hostvars[master_server].ansible_eth1.ipv4.address }} port=5432 user=replicator'
       trigger_file = '/tmp/postgresql.trigger'
   become: true
   become_user: "{{ postgresql_user }}"
+  when: master_server is defined
 
 - name: Fix SE Linux labels on {{ postgresql_data_dir }}
   become: true
