@@ -2,17 +2,21 @@
 #
 # streaming tasks for the replica
 ---
-
+- set_fact: master_server={{ hostvars[inventory_hostname].groups.tag_Role_master[0] }}
+  when: hostvars[inventory_hostname].groups.tag_Role_master[0] is defined
+  
 - name: Preserve postgresql.conf
   command: /bin/cp {{ postgresql_config_path }}/postgresql.conf /tmp
   become: true
   become_user: "{{ postgresql_user }}"
+  when: master_server is defined
   
 - name: Remove data directory in preparation for streaming
   file:
     path: "{{ postgresql_data_dir }}"  
     state: absent
   become: true
+  when: master_server is defined
   
 - name: Ensure PostgreSQL data directory exists.
   file:
@@ -22,9 +26,7 @@
     state: directory
     mode: 0700
   become: true
-  
-- set_fact: master_server={{ hostvars[inventory_hostname].groups.tag_Role_master[0] }}
-  when: hostvars[inventory_hostname].groups.tag_Role_master[0] is defined
+  when: master_server is defined
 
 - name: copy initial database
   command: "/bin/pg_basebackup -h {{ hostvars[master_server].ansible_eth1.ipv4.address }} -D {{ postgresql_data_dir }} -U replicator -v -P --xlog-method=stream"
@@ -36,6 +38,7 @@
   command: /bin/cp /tmp/postgresql.conf {{ postgresql_config_path }}
   become: true
   become_user: "{{ postgresql_user }}"
+  when: master_server is defined
   
 - name: build recovery file
   blockinfile:
@@ -62,30 +65,7 @@
     line: "wal_level = hot_standby\t\t\t# minimal, archive, or hot_standby"
   become: true
   notify: restart postgresql
-
-- name: configure write ahead log senders
-  lineinfile:
-    dest: "{{ postgresql_config_path }}/postgresql.conf"
-    regexp: "^#max_wal_senders"
-    line: "max_wal_senders = 3\t\t# max number of walsender processes"
-  become: true
-  notify: restart postgresql
-
-- name: configure checkpoint segments
-  lineinfile:
-    dest: "{{ postgresql_config_path }}/postgresql.conf"
-    regexp: "^#checkpoint_segments"
-    line: "checkpoint_segments = 8\t\t\t# in logfile segments, min 1, 16MB each"
-  become: true
-  notify: restart postgresql
-  
-- name: configure write ahead log keep segments
-  lineinfile:
-    dest: "{{ postgresql_config_path }}/postgresql.conf"
-    regexp: "^#wal_keep_segments"
-    line: "wal_keep_segments = 8\t\t# in logfile segments, 16MB each; 0 disables"
-  become: true
-  notify: restart postgresql
+  when: master_server is defined
 
 - name: turn on hot standby
   lineinfile:
@@ -94,3 +74,32 @@
     line: "hot_standby = on\t\t\t# \"on\" allows queries during recovery"
   become: true
   notify: restart postgresql
+  when: master_server is defined
+  
+- name: configure write ahead log senders
+  lineinfile:
+    dest: "{{ postgresql_config_path }}/postgresql.conf"
+    regexp: "^#max_wal_senders"
+    line: "max_wal_senders = 3\t\t# max number of walsender processes"
+  become: true
+  notify: restart postgresql
+  when: master_server is defined
+
+- name: configure checkpoint segments
+  lineinfile:
+    dest: "{{ postgresql_config_path }}/postgresql.conf"
+    regexp: "^#checkpoint_segments"
+    line: "checkpoint_segments = 8\t\t\t# logfile segments, min 1, 16MB each"
+  become: true
+  notify: restart postgresql
+  when: master_server is defined
+  
+- name: configure write ahead log keep segments
+  lineinfile:
+    dest: "{{ postgresql_config_path }}/postgresql.conf"
+    regexp: "^#wal_keep_segments"
+    line: "wal_keep_segments = 8\t\t# in logfile segments, 16MB each; 0 disables"
+  become: true
+  notify: restart postgresql
+  when: master_server is defined
+
