@@ -12,8 +12,10 @@ postgresql_package_list:
   - "postgresql-contrib-{{ postgresql_version }}"
   - "postgresql-libs-{{ postgresql_version }}"
 postgresql_data_dir: "/data/pgsql"
+postgresql_home_dir: "/var/lib/pgsql"
 postgresql_bin_path: "/usr/bin"
 #postgresql_config_path: "/var/lib/pgsql/data"
 postgresql_config_path: "{{ postgresql_data_dir }}"
 postgresql_daemon: postgresql
 postgresql_interface: eth1
+ansible_ssh_private_key_file: "aws_{{ hostvars[inventory_hostname].ec2_key_name }}_private_key.pem"
