@@ -4,140 +4,165 @@
 - include: facts.yml
   static: no
 
-- name: apply postgresql customizations
-  become: true
-  blockinfile:
-    name: /etc/systemd/system/postgresql.service
-    mode: 0644
-    create: yes
-    block: |
-      .include /lib/systemd/system/postgresql.service
-      [Service]
-      Environment=PGDATA={{ postgresql_data_dir }}      
+- block:
+  - name: Ensure PostgreSQL data directory exists.
+    file:
+      path: "{{ postgresql_data_dir }}"
+      owner: "{{ postgresql_user }}"
+      group: "{{ postgresql_group }}"
+      state: directory
+      mode: 0700
 
-# initialize
-- name: Set PostgreSQL environment variables
-  template:
-    src: postgres.sh.j2
-    dest: /etc/profile.d/postgres.sh
-    mode: 0644
-  notify: restart postgresql
-  become: true
+  - name: Check if PostgreSQL database is initialized
+    stat:
+      path: "{{ postgresql_data_dir }}/PG_VERSION"
+    register: pgdata_dir_version
 
-- name: Ensure PostgreSQL data directory exists.
-  file:
-    path: "{{ postgresql_data_dir }}"
-    owner: "{{ postgresql_user }}"
-    group: "{{ postgresql_group }}"
-    state: directory
-    mode: 0700
-  become: true
-
-- name: Check if PostgreSQL database is initialized
-  stat:
-    path: "{{ postgresql_data_dir }}/PG_VERSION"
-  become: true
-  register: pgdata_dir_version
-
-- name: Ensure PostgreSQL database is initialized
-  command: "{{ postgresql_bin_path }}/initdb -D {{ postgresql_data_dir }}"
-  when: not pgdata_dir_version.stat.exists
-  become: true
-  become_user: "{{ postgresql_user }}"
-  
-- name: Listen on interface for data network; defaults to eth1
-  lineinfile:
-    dest: "{{ postgresql_config_path }}/postgresql.conf"
-    regexp: "^#listen_addresses"
-    line: "listen_addresses = '{{ item }}'\t# what IP address(es) to listen on;"
-  with_items: "{{ postgresql_addr }}"
-  become: true
-  notify: restart postgresql
-
-- name: get data network for the trusted listener
-  shell: "/usr/sbin/ip addr list {{ postgresql_interface }} | grep -w 'inet' | cut -d' ' -f8 | sed 's/255/0/g'"
-  register: data_network
-  
-- name: Set trusted listener on data network
-  lineinfile:
-    dest: "{{ postgresql_config_path }}/pg_hba.conf"
-    regexp: "^host    all             all             127.0.0.1/32            trust"
-    line: "host    all             all             {{ data_network.stdout }}/24            trust"
-  become: true
-  notify: restart postgresql
+  - name: Ensure PostgreSQL database is initialized
+    command: "{{ postgresql_bin_path }}/initdb -D {{ postgresql_data_dir }}"
+    become_user: "{{ postgresql_user }}"
+    when: not pgdata_dir_version.stat.exists
     
-- name: Configure global settings.
-  lineinfile:
-    dest: "{{ postgresql_config_path }}/postgresql.conf"
-    regexp: "^#?{{ item.option }}.+$"
-    line: "{{ item.option }} = '{{ item.value }}'"
-    state: "{{ item.state | default('present') }}"
-  with_items: "{{ postgresql_global_config_options }}"
-  become: true
-  notify: restart postgresql
-  
-- name: Ensure PostgreSQL unix socket dirs exist
-  file:
-    path: "{{ item }}"
-    state: directory
-    owner: "{{ postgresql_user }}"
-    group: "{{ postgresql_group }}"
-    mode: 02775
-  with_items: "{{ postgresql_unix_socket_directories }}"
-  become: true
-
-- name: Update SE Linux enforcing mode
-  sefcontext:
-    target: "{{ postgresql_data_dir }}(/.*)?"
-    setype: postgresql_db_t
-    state: present
-    reload: true
-  become: true
-  when: ansible_selinux.status == "enabled"
+  - name: check if certs are present
+    stat:
+      path: "{{ postgresql_data_dir}}/server.key"
+    register: pgdata_server_key
       
-# sefcontent does not restore the context, so we need another step       
-- name: Restore SE Linux security context
-  become: true
-  command: "/sbin/restorecon -R {{ postgresql_data_dir }}"
-  when: ansible_selinux.status == "enabled"
-  
-- name: Ensure PostgreSQL is started and enabled on boot
-  systemd: "name={{ postgresql_daemon }} state=started enabled=True"
-  become: true
-  
-# Configure PostgreSQL.
-- name: Ensure PostgreSQL databases are present
-  postgresql_db:
-    name: "{{ item.name }}"
-    lc_collate: "{{ item.lc_collate | default('en_US.UTF-8') }}"
-    lc_ctype: "{{ item.lc_ctype | default('en_US.UTF-8') }}"
-    encoding: "{{ item.encoding | default('UTF-8') }}"
-    template: "{{ item.template | default('template0') }}"
-    login_host: "{{ item.login_host | default('localhost') }}"
-    login_password: "{{ item.login_password | default(omit) }}"
-    login_user: "{{ item.login_user | default(postgresql_user) }}"
-    login_unix_socket: "{{ item.login_unix_socket | default(postgresql_unix_socket_directories[0]) }}"
-    port: "{{ item.port | default(omit) }}"
-    state: "{{ item.state | default('present') }}"
-  with_items: "{{ postgresql_databases }}"
-  become: true
-  become_user: "{{ postgresql_user }}"
+  - name: create SSL certs and keys
+    command: /bin/openssl req -nodes -newkey rsa:2048 -keyout {{ postgresql_data_dir }}/server.key -out {{ postgresql_data_dir }}/server.crt -x509 -subj "/C=US/ST=CO/L=Denver/O=DataNexus/OU=Engineering/CN=datanexus.com/emailAddress=dev@datanexus.com"
+    become_user: "{{ postgresql_user }}"
+    when: not pgdata_server_key.stat.exists
 
-- name: Ensure PostgreSQL users are present
-  postgresql_user:
-    name: "{{ item.name }}"
-    password: "{{ item.password | default(omit) }}"
-    priv: "{{ item.priv | default(omit) }}"
-    role_attr_flags: "{{ item.role_attr_flags | default(omit) }}"
-    db: "{{ item.db | default(omit) }}"
-    login_host: "{{ item.login_host | default('localhost') }}"
-    login_password: "{{ item.login_password | default(omit) }}"
-    login_user: "{{ item.login_user | default(postgresql_user) }}"
-    login_unix_socket: "{{ item.login_unix_socket | default(postgresql_unix_socket_directories[0]) }}"
-    port: "{{ item.port | default(omit) }}"
-    state: "{{ item.state | default('present') }}"
-  with_items: "{{ postgresql_users  }}"
-  no_log: true
-  become: true
-  become_user: "{{ postgresql_user }}"
+  - name: use server cert as the trusted root certificate (self-signing)
+    command: /usr/bin/cp {{ postgresql_data_dir }}/server.crt {{ postgresql_data_dir }}/root.crt
+      
+  - name: ensure server.key permissions
+    file:
+      path: "{{ postgresql_data_dir }}/server.key"
+      owner: "{{ postgresql_user }}"
+      group: "{{ postgresql_group }}"
+      mode: 0400
+    
+  - name: turn on SSL
+    lineinfile:
+      dest: "{{ postgresql_config_path }}/postgresql.conf"
+      regexp: "^#ssl = off"
+      backrefs: yes
+      line: "ssl = on\t\t\t\t# (change requires restart)"
   
+  - name: configure CA root certificate
+    lineinfile:
+      dest: "{{ postgresql_config_path }}/postgresql.conf"
+      regexp: "^#ssl_ca_file ="
+      backrefs: yes
+      line: "ssl_ca_file = 'root.crt'\t\t# (change requires restart)"
+    become: true
+    notify: restart postgresql
+            
+  - name: apply postgresql customizations
+    blockinfile:
+      name: /etc/systemd/system/postgresql.service
+      mode: 0644
+      create: yes
+      block: |
+        .include /lib/systemd/system/postgresql.service
+        [Service]
+        Environment=PGDATA={{ postgresql_data_dir }}      
+
+  # initialize
+  - name: Set PostgreSQL environment variables
+    template:
+      src: postgres.sh.j2
+      dest: /etc/profile.d/postgres.sh
+      mode: 0644
+    notify: restart postgresql
+  
+  - name: Listen on interface for data network; defaults to eth1
+    lineinfile:
+      dest: "{{ postgresql_config_path }}/postgresql.conf"
+      regexp: "^#listen_addresses"
+      backrefs: yes
+      line: "listen_addresses = '{{ item }}'\t# what IP address(es) to listen on;"
+    with_items: "{{ postgresql_addr }}"
+    notify: restart postgresql
+
+  - name: get data network for the trusted listener
+    shell: "/usr/sbin/ip addr list {{ postgresql_interface }} | grep -w 'inet' | cut -d' ' -f8 | sed 's/255/0/g'"
+    register: data_network
+  
+  - name: Set trusted listener on data network
+    lineinfile:
+      dest: "{{ postgresql_config_path }}/pg_hba.conf"
+      regexp: "^host    all             all             127.0.0.1/32            trust"
+      backrefs: yes
+      line: "hostssl all             all             {{ data_network.stdout }}/24            cert clientcert=1"
+    notify: restart postgresql
+      
+  - name: Configure global settings.
+    lineinfile:
+      dest: "{{ postgresql_config_path }}/postgresql.conf"
+      regexp: "^#?{{ item.option }}.+$"
+      line: "{{ item.option }} = '{{ item.value }}'"
+      state: "{{ item.state | default('present') }}"
+    with_items: "{{ postgresql_global_config_options }}"
+    notify: restart postgresql
+  
+  - name: Ensure PostgreSQL unix socket dirs exist
+    file:
+      path: "{{ item }}"
+      state: directory
+      owner: "{{ postgresql_user }}"
+      group: "{{ postgresql_group }}"
+      mode: 02775
+    with_items: "{{ postgresql_unix_socket_directories }}"
+
+  - name: Update SE Linux enforcing mode
+    sefcontext:
+      target: "{{ postgresql_data_dir }}(/.*)?"
+      setype: postgresql_db_t
+      state: present
+      reload: true
+    when: ansible_selinux.status == "enabled"
+      
+  # sefcontent does not restore the context, so we need another step       
+  - name: Restore SE Linux security context
+    command: /sbin/restorecon -R {{ postgresql_data_dir }}
+    when: ansible_selinux.status == "enabled"
+  
+  - name: Ensure PostgreSQL is started and enabled on boot
+    systemd: "name={{ postgresql_daemon }} state=started enabled=True"
+  
+  # Configure PostgreSQL.
+  - name: Ensure PostgreSQL databases are present
+    postgresql_db:
+      name: "{{ item.name }}"
+      lc_collate: "{{ item.lc_collate | default('en_US.UTF-8') }}"
+      lc_ctype: "{{ item.lc_ctype | default('en_US.UTF-8') }}"
+      encoding: "{{ item.encoding | default('UTF-8') }}"
+      template: "{{ item.template | default('template0') }}"
+      login_host: "{{ item.login_host | default('localhost') }}"
+      login_password: "{{ item.login_password | default(omit) }}"
+      login_user: "{{ item.login_user | default(postgresql_user) }}"
+      login_unix_socket: "{{ item.login_unix_socket | default(postgresql_unix_socket_directories[0]) }}"
+      port: "{{ item.port | default(omit) }}"
+      state: "{{ item.state | default('present') }}"
+    with_items: "{{ postgresql_databases }}"
+    become_user: "{{ postgresql_user }}"
+
+  - name: Ensure PostgreSQL users are present
+    postgresql_user:
+      name: "{{ item.name }}"
+      password: "{{ item.password | default(omit) }}"
+      priv: "{{ item.priv | default(omit) }}"
+      role_attr_flags: "{{ item.role_attr_flags | default(omit) }}"
+      db: "{{ item.db | default(omit) }}"
+      login_host: "{{ item.login_host | default('localhost') }}"
+      login_password: "{{ item.login_password | default(omit) }}"
+      login_user: "{{ item.login_user | default(postgresql_user) }}"
+      login_unix_socket: "{{ item.login_unix_socket | default(postgresql_unix_socket_directories[0]) }}"
+      port: "{{ item.port | default(omit) }}"
+      state: "{{ item.state | default('present') }}"
+    with_items: "{{ postgresql_users  }}"
+    no_log: true
+    become_user: "{{ postgresql_user }}"
+  become: true

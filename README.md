@@ -3,35 +3,53 @@
 Role Name
 =========
 
-A brief description of the role goes here.
+Builds a stand-alone postgresql database with SSL connectivity. If multiple servers have been provisioned and tagged with "Role:master" and "Role:replica" 
+a streaming master-replica will be provisioned.
 
 Requirements
 ------------
 
-Any pre-requisites that may not be covered by Ansible itself or the role should be mentioned here. For instance, if the role uses the EC2 module, it may be a good idea to mention in this section that the boto package is required.
+* ec2
+* boto
 
 Role Variables
 --------------
 
-A description of the settable variables for this role should go here, including any variables that are in defaults/main.yml, vars/main.yml, and any variables that can/should be set via parameters to the role. Any variables that are read from other roles and/or the global scope (ie. hostvars, group vars, etc.) should be mentioned here as well.
+    application: postgresql
+    postgresql_version: "9.2.18-1.el7"
+    python_postgres_adapter_version: "2.5.1-3.el7"
+    postgresql_package_list:
+      - "python-psycopg2-{{ python_postgres_adapter_version }}"
+      - "postgresql-{{ postgresql_version }}"
+      - "postgresql-server-{{ postgresql_version }}"
+      - "postgresql-contrib-{{ postgresql_version }}"
+      - "postgresql-libs-{{ postgresql_version }}"
+    postgresql_data_dir: "/data/pgsql"
+    postgresql_home_dir: "/var/lib/pgsql"
+    postgresql_bin_path: "/usr/bin"
+    postgresql_config_path: "{{ postgresql_data_dir }}"
+    postgresql_daemon: postgresql
+    postgresql_interface: eth1
+    ansible_ssh_private_key_file: "aws_{{ hostvars[inventory_hostname].ec2_key_name }}_private_key.pem"
 
 Dependencies
 ------------
+Instances must be tagged: 
 
-A list of other roles hosted on Galaxy should go here, plus any details in regards to parameters that may need to be set for other roles, or variables that are used from other roles.
+    Cloud
+    Tenant
+    Project
+    Domain
+    Application
+    [Role]
 
-Example Playbook
+Playbook
 ----------------
+The _site.yml_ playbook contains the necessary code to provision either an individual server or a master-replica pair.
 
-IThe _site.yml_ playbook contains the following:
+Call like the  playbook like this:
 
-    - hosts: "{{ host_inventory }}"
-      roles:
-        - { role: postgresql, become: yes }
-
-Call like the entire playbook like this:
-
-    AWS_PROFILE=PROFILE ansible-playbook -e "INVENTORY" --private-key=aws_developer_developer_private_key.pem --user=centos site.yml
+    AWS_PROFILE=PROFILE ansible-playbook -e "project=PROJECT application=postgresql domain=DOMAIN  host_inventory=tag_Application_{{ application }} ansible_user=USER" site.yml
 
 where:
   
@@ -39,33 +57,13 @@ where:
 
 and
 
-    INVENTORY is the query intersection of tags to uniquely identify the required hosts 
+    PROJECT is the project name
+    DOMAIN is the domain: development or production or similar
+    USER is the instance login, ec2-user, redhat, centos, etc
+    
+The command that was used repeatedly during development and testing on AWS was:
 
-Supported tags are:
-
-* Teant - customer or client (UNIQUE per platform instance)
-* Cloud - [aws | azure | openstack]
-* Project - customer specific project name (UNIQUE per tenant)
-* Domain - development, production, etc
-* Application - cassandra, prostgres, kafka, etc 
-
-Some examples:
-
-Within the AWS master account for datanexus, return all postgres hosts for the tenant CustomerXYZ:
-
-    AWS_PROFILE=datanexus ansible-playbook -e "tag_Application_postgresql:&tag_Tenant_CustomerXYZ" --private-key=aws_postgres_customer_development_private_key.pem --user=centos site.yml    
-
-Within the AWS master account for datanexus, return all cassandra hosts:
-
-    AWS_PROFILE=datanexus ansible-playbook -e "tag_Application_cassandra" --private-key=aws_postgres_customer_development_private_key.pem --user=centos site.yml    
-
-Within the AWS master account for datanexus, return all development cassandra hosts for project coolstuff:
-
-    AWS_PROFILE=datanexus ansible-playbook -e "tag_Application_cassandra:&tag_Domain_development:&tag_Project_coolstuff" --private-key=aws_postgres_customer_development_private_key.pem --user=centos site.yml    
-
-Disregard all dynamic lookups and specify two hosts manually, such as for use within Vagrant:
-
-    AWS_PROFILE=datanexus ansible-playbook -e "{host_inventory: [10.0.1.1, 10.0.1.2]}" --private-key=aws_postgres_customer_development_private_key.pem --user=centos site.yml
+    AWS_PROFILE=datanexus ansible-playbook -e "project=demo application=postgresql domain=development  host_inventory=tag_Application_{{ application }} ansible_user=centos" test.yml
 
 License
 -------
@@ -75,4 +73,4 @@ Apache
 Author Information
 ------------------
 
-An optional section for the role authors to include contact information, or a website (HTML is not allowed).
+[Christopher Keller](mailto:ckeller@datanexus.org)
