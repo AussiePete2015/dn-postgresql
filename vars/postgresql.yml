@@ -18,4 +18,4 @@ postgresql_bin_path: "/usr/bin"
 postgresql_config_path: "{{ postgresql_data_dir }}"
 postgresql_daemon: postgresql
 postgresql_interface: eth1
-ansible_ssh_private_key_file: "aws_{{ hostvars[inventory_hostname].ec2_key_name }}_private_key.pem"
+ansible_ssh_private_key_file: "{{ cloud }}-{{ hostvars[inventory_hostname].ec2_key_name }}-private-key.pem"
