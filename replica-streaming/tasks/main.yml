@@ -29,11 +29,18 @@
         owner: "{{ postgresql_user }}"
         group: "{{ postgresql_group }}"
         state: directory
-        mode: 0700
+        mode: 0700      
+    
+    - name: check if SSL keys exist
+      stat:
+        path: "{{ postgresql_home_dir }}/.postgresql/postgresql.key"
+      register: pghome_key 
+      
     - name: create SSL certs and keys
       command: /bin/openssl req -nodes -newkey rsa:2048 -keyout {{ postgresql_home_dir }}/.postgresql/postgresql.key -out {{ postgresql_home_dir }}/postgresql.csr -subj "/C=US/ST=CO/L=Denver/O=DataNexus/CN=replicator"
       become_user: "{{ postgresql_user }}"
-      
+      when: not pghome_key.stat.exists
+
     - name: upload the master signing cert
       copy: 
         src: /tmp/root.crt
@@ -53,7 +60,7 @@
     - name: sign replica key
       command: /bin/openssl x509 -req -in {{ postgresql_home_dir }}/postgresql.csr -CA "{{ postgresql_home_dir }}/.postgresql/root.crt" -CAkey {{ postgresql_home_dir }}/server.key -out {{ postgresql_home_dir }}/.postgresql/postgresql.crt -CAcreateserial
       become_user: "{{ postgresql_user }}"
-      
+
     - name: ensure replica key permissions
       file:
         path: "{{ postgresql_home_dir }}/.postgresql/postgresql.key"
