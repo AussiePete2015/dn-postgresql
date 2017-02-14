@@ -7,6 +7,7 @@
   vars_files:
     - vars/postgresql.yml
   roles:
+    - { role: install-packages, package_list: ['epel-release-7-9', 'https://download.postgresql.org/pub/repos/yum/{{ postgresql_major_version }}.{{ postgresql_minor_version }}/redhat/rhel-7-x86_64/pgdg-centos{{ postgresql_major_version }}{{ postgresql_minor_version }}-{{ postgresql_major_version }}.{{ postgresql_minor_version }}-3.noarch.rpm'] }
     - { role: install-packages, package_list: "{{ postgresql_package_list }}" }
     - { role: get-iface-addr, iface_name: "{{ postgresql_interface }}" }
     - { role: dn-postgresql, postgresql_addr: "{{ iface_addr }}" }

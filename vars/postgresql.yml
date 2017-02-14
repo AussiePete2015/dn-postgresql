@@ -3,19 +3,20 @@
 # default variables from datanexus
 
 application: postgresql
-postgresql_version: "9.2.18-1.el7"
-python_postgres_adapter_version: "2.5.1-3.el7"
+postgresql_major_version: "9"
+postgresql_minor_version: "5"
+postgresql_version: "{{ postgresql_major_version }}.{{ postgresql_minor_version }}.6-1PGDG.rhel7"
+python_postgres_adapter_version: "2.6.2-3.rhel7"
 postgresql_package_list:
   - "python-psycopg2-{{ python_postgres_adapter_version }}"
-  - "postgresql-{{ postgresql_version }}"
-  - "postgresql-server-{{ postgresql_version }}"
-  - "postgresql-contrib-{{ postgresql_version }}"
-  - "postgresql-libs-{{ postgresql_version }}"
+  - "postgresql95-{{ postgresql_version }}"
+  - "postgresql95-server-{{ postgresql_version }}"
+  - "postgresql95-contrib-{{ postgresql_version }}"
+  - "postgresql95-libs-{{ postgresql_version }}"
 postgresql_data_dir: "/data/pgsql"
 postgresql_home_dir: "/var/lib/pgsql"
-postgresql_bin_path: "/usr/bin"
-#postgresql_config_path: "/var/lib/pgsql/data"
+postgresql_bin_path: "/usr/pgsql-{{ postgresql_major_version }}.{{ postgresql_minor_version }}/bin"
 postgresql_config_path: "{{ postgresql_data_dir }}"
-postgresql_daemon: postgresql
+postgresql_daemon: "postgresql-{{ postgresql_major_version }}.{{ postgresql_minor_version }}"
 postgresql_interface: eth1
 ansible_ssh_private_key_file: "{{ cloud }}-{{ hostvars[inventory_hostname].ec2_key_name }}-private-key.pem"
