@@ -3,16 +3,18 @@
 # default variables from datanexus
 
 application: postgresql
-postgresql_major_version: "9"
-postgresql_minor_version: "5"
-postgresql_version: "{{ postgresql_major_version }}.{{ postgresql_minor_version }}.6-1PGDG.rhel7"
-python_postgres_adapter_version: "2.6.2-3.rhel7"
+postgresql_major_version: 9
+postgresql_minor_version: 6
+postgresql_rev_version: "2-1"
+postgresql_rpm_info: "PGDG.rhel7.x86_64.rpm"
+postgresql_version: "{{ postgresql_major_version }}.{{ postgresql_minor_version }}-{{ postgresql_rev_version }}"
+python_postgres_adapter_version: "2.6.2-3"
 postgresql_package_list:
-  - "python-psycopg2-{{ python_postgres_adapter_version }}"
-  - "postgresql95-{{ postgresql_version }}"
-  - "postgresql95-server-{{ postgresql_version }}"
-  - "postgresql95-contrib-{{ postgresql_version }}"
-  - "postgresql95-libs-{{ postgresql_version }}"
+  - "python-psycopg2-{{ python_postgres_adapter_version }}.rhel7.x86_64.rpm"
+  - "postgresql{{ postgresql_major_version }}{{ postgresql_minor_version }}-{{ postgresql_version }}{{ postgresql_rpm_info }}"
+  - "postgresql{ postgresql_major_version }}{{ postgresql_minor_version }}-server-{{ postgresql_version }}{{ postgresql_rpm_info }}"
+  - "postgresql{ postgresql_major_version }}{{ postgresql_minor_version }}-contrib-{{ postgresql_version }}{{ postgresql_rpm_info }}"
+  - "postgresql{ postgresql_major_version }}{{ postgresql_minor_version }}-libs-{{ postgresql_version }}{{ postgresql_rpm_info }}"
 postgresql_data_dir: "/data/pgsql"
 postgresql_home_dir: "/var/lib/pgsql"
 postgresql_bin_path: "/usr/pgsql-{{ postgresql_major_version }}.{{ postgresql_minor_version }}/bin"
