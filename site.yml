@@ -3,24 +3,152 @@
 # Default manifest for installing postgresql instance(s) standalone
 # AWS_PROFILE=datanexus ansible-playbook -e "project=demo application=postgresql domain=development  host_inventory=tag_Application_{{ application }} ansible_user=centos cloud=aws" site.yml
 ---
-- hosts: "{{ host_inventory }}"
+#- hosts: "{{ host_inventory }}"
+- hosts: localhost
   vars_files:
     - vars/postgresql.yml
-  roles: 
-    - { role: install-packages, package_list: ['epel-release-7-9', 'https://download.postgresql.org/pub/repos/yum/{{ postgresql_major_version }}.{{ postgresql_minor_version }}/redhat/rhel-7-x86_64/pgdg-centos{{ postgresql_major_version }}{{ postgresql_minor_version }}-{{ postgresql_major_version }}.{{ postgresql_minor_version }}-3.noarch.rpm'] }
+    - "vars/{{ cloud }}.yml"
+    - vars/tenant.yml
+    - "vars/{{ project }}-project.yml"
+#    - "vars/{{ domain }}-domain.yml"
+  gather_facts: no
+  tasks:
+#    - block:
+    - name: finding postgresql-replica IP
+      local_action: shell AWS_PROFILE=iagcl common-utils/inventory/aws/ec2
+      register: ec2_output
+    - name: finding postgresql-master IP
+      local_action: shell NO_PROXY=auiag.corp common-utils/inventory/osp/openstack
+      register: osp_output
+    - set_fact:
+        ec2_output_json: "{{ ec2_output.stdout | from_json }}"
+    - set_fact: 
+        osp_output_json: "{{ osp_output.stdout | from_json }}"
+    - set_fact:
+        ec2_cloud_nodes: "{{ ec2_output_json | json_query('tag_Cloud_aws') }}"
+        ec2_tenant_nodes: "{{ ec2_output_json | json_query('tag_Tenant_' + tenant) }}"
+        ec2_project_nodes: "{{ ec2_output_json | json_query('tag_Project_' + project) }}"
+        ec2_domain_nodes: "{{ ec2_output_json | json_query('tag_Domain_ProdA') }}"
+        ec2_application_nodes: "{{ ec2_output_json | json_query('tag_Application_' + application) }}"
+        ec2_role_nodes: "{{ ec2_output_json | json_query('tag_Role_replica') }}"
+    - set_fact:
+        postgresql_replica_nodes: "{{ ec2_cloud_nodes | intersect(ec2_tenant_nodes) | intersect(ec2_project_nodes) | intersect(ec2_domain_nodes) | intersect(ec2_application_nodes) | intersect(ec2_role_nodes) }}"
+ 
+    - set_fact:
+        osp_cloud_nodes: "{{ (osp_output_json | json_query('[\"meta-Cloud_osp\"]')).0 }}"
+        osp_tenant_nodes: "{{ (osp_output_json | json_query('[\"meta-Tenant_' + tenant + '\"]')).0 }}"
+        osp_project_nodes: "{{ (osp_output_json | json_query('[\"meta-Project_' + project + '\"]')).0 }}"
+        osp_domain_nodes: "{{ (osp_output_json | json_query('[\"meta-Domain_production\"]')).0 }}"
+        osp_application_nodes: "{{ (osp_output_json | json_query('[\"meta-Application_' + application + '\"]')).0 }}"
+        osp_role_nodes: "{{ (osp_output_json | json_query('[\"meta-Role_master\"]')).0 }}"            
+    - set_fact:
+        postgresql_master_nodes: "{{ osp_cloud_nodes | intersect(osp_tenant_nodes) | intersect(osp_project_nodes) | intersect(osp_domain_nodes) | intersect(osp_application_nodes) | intersect(osp_role_nodes) }}"
+
+#      - debug: msg="IP is {{ (osp_output_json | json_query('_meta.hostvars.["6244096e-75c8-4cbe-8b52-6c2007882aa0"]')).0.ansible_ssh_host }}"
+    
+    - name: adding master to dynamic host list
+      add_host:
+#        hostname: "{{ (osp_output_json | json_query('_meta.hostvars.[\"' + item + '\"]')).0.ansible_ssh_host }}"
+        hostname: "{{ item }}"
+        ansible_ssh_private_key_file: /Users/christopher/Documents/IAG/CustomerLabs/DataEngineering/DataNexus_Platform/Source/customer-demo/osp-melbourne-1-postgresql-demo-production-private-key.pem
+        ansible_user: cloud-user
+        groups: "{{ application }}_master_hostlist,osp-nodes"
+      with_items: "{{ postgresql_master_nodes }}"
+#        when: postgresql_master_nodes is defined
+    - name: adding replica to dynamic host list
+      add_host:
+        hostname: "{{ item }}"
+        ansible_ssh_private_key_file: /Users/christopher/Documents/IAG/CustomerLabs/DataEngineering/DataNexus_Platform/Source/customer-demo/aws-ap-southeast-2-postgresql-demo-ProdA-private-key.pem
+        ansible_user: centos
+        groups: "{{ application }}_replica_hostlist,aws-nodes"
+      with_items: "{{ postgresql_replica_nodes }}"
+      
+      
+#        when: postgresql_replica_nodes is defined
+#      run_once: true
+
+- hosts: "osp-nodes"
+  vars_files:
+    - vars/postgresql.yml
+    - "vars/{{ cloud }}.yml"
+    - vars/tenant.yml
+    - "vars/{{ project }}-project.yml"
+#    - "vars/{{ domain }}-domain.yml"
+  tasks:
+    - name: postgres repo
+      command: /usr/bin/yum -y reinstall https://download.postgresql.org/pub/repos/yum/{{ postgresql_major_version }}.{{ postgresql_minor_version }}/redhat/rhel-7-x86_64/pgdg-{{ ansible_distribution|lower }}{{ postgresql_major_version }}{{ postgresql_minor_version }}-{{ postgresql_major_version }}.{{ postgresql_minor_version }}-3.noarch.rpm
+      become: yes
+
+- hosts: "aws-nodes"
+  vars_files:
+    - vars/postgresql.yml
+    - "vars/{{ cloud }}.yml"
+    - vars/tenant.yml
+    - "vars/{{ project }}-project.yml"
+#    - "vars/{{ domain }}-domain.yml"
+  tasks:
+    - name: postgres repo
+      command: /usr/bin/yum -y reinstall https://download.postgresql.org/pub/repos/yum/{{ postgresql_major_version }}.{{ postgresql_minor_version }}/redhat/rhel-7-x86_64/pgdg-{{ ansible_distribution|lower }}{{ postgresql_major_version }}{{ postgresql_minor_version }}-{{ postgresql_major_version }}.{{ postgresql_minor_version }}-3.noarch.rpm
+      become: yes
+      
+- hosts: "osp-nodes"
+  vars_files:
+    - vars/postgresql.yml
+    - "vars/{{ cloud }}.yml"
+    - vars/tenant.yml
+    - "vars/{{ project }}-project.yml"
+#    - "vars/{{ domain }}-domain.yml"
+  roles:
+#    - { role: common-roles/add-package-repo, package_name: "pgdg96", repo_name: "PostgreSQL 9.6", repo_url: "https://download.postgresql.org/pub/repos/yum/srpms/9.6/redhat/rhel-$releasever-$basearch", repo_key_url: "file:///etc/pki/rpm-gpg/RPM-GPG-KEY-PGDG-96", when: proxy_env is defined }
+#    - { role: install-packages, package_list: ['epel-release-7-9', 'https://download.postgresql.org/pub/repos/yum/{{ postgresql_major_version }}.{{ postgresql_minor_version }}/redhat/rhel-7-x86_64/pgdg-centos{{ postgresql_major_version }}{{ postgresql_minor_version }}-{{ postgresql_major_version }}.{{ postgresql_minor_version }}-3.noarch.rpm'] }
+    - { role: install-packages, package_list: ['epel-release-7-9'], when: cloud == 'aws' }
     - { role: install-packages, package_list: "{{ postgresql_package_list }}" }
     - { role: get-iface-addr, iface_name: "{{ postgresql_interface }}" }
     - { role: dn-postgresql, postgresql_addr: "{{ iface_addr }}" }
 
-- hosts: "{{ host_inventory }}:&tag_Role_master"
+- hosts: "aws-nodes"
   vars_files:
     - vars/postgresql.yml
+    - "vars/{{ cloud }}.yml"
+    - vars/tenant.yml
+    - "vars/{{ project }}-project.yml"
+#    - "vars/{{ domain }}-domain.yml"
+  roles:
+#    - { role: common-roles/add-package-repo, package_name: "pgdg96", repo_name: "PostgreSQL 9.6", repo_url: "https://download.postgresql.org/pub/repos/yum/srpms/9.6/redhat/rhel-$releasever-$basearch", repo_key_url: "file:///etc/pki/rpm-gpg/RPM-GPG-KEY-PGDG-96", when: proxy_env is defined }
+#    - { role: install-packages, package_list: ['epel-release-7-9', 'https://download.postgresql.org/pub/repos/yum/{{ postgresql_major_version }}.{{ postgresql_minor_version }}/redhat/rhel-7-x86_64/pgdg-centos{{ postgresql_major_version }}{{ postgresql_minor_version }}-{{ postgresql_major_version }}.{{ postgresql_minor_version }}-3.noarch.rpm'] }
+    - { role: install-packages, package_list: ['epel-release-7-9'], when: cloud == 'aws' }
+    - { role: install-packages, package_list: "{{ postgresql_package_list }}" }
+    - { role: get-iface-addr, iface_name: "{{ postgresql_interface }}" }
+    - { role: dn-postgresql, postgresql_addr: "{{ iface_addr }}" }
+
+- name: ensure postsgresql master nodes are present in hostvars
+  hosts: "{{ application }}_master_hostlist"
+  tasks: []
+
+- name: ensure postsgresql replica nodes are present in hostvars
+  hosts: "{{ application }}_replica_hostlist"
+  tasks: []
+    
+#- hosts: "{{ host_inventory }}:&{{ tag_prefix }}Role_master"
+- hosts: "{{ application }}_master_hostlist"
+  gather_facts: no
+  vars_files:
+    - vars/postgresql.yml
+    - "vars/{{ cloud }}.yml"
+    - vars/tenant.yml
+    - "vars/{{ project }}-project.yml"
+#    - "vars/{{ domain }}-domain.yml"
   roles:
     - { role: master-streaming }
 
-- hosts: "{{ host_inventory }}:&tag_Role_replica"
+#- hosts: "{{ host_inventory }}:&{{ tag_prefix }}Role_replica"
+- hosts: "{{ application }}_replica_hostlist"
+  gather_facts: no
   vars_files:
     - vars/postgresql.yml
+    - "vars/{{ cloud }}.yml"
+    - vars/tenant.yml
+    - "vars/{{ project }}-project.yml"
+#    - "vars/{{ domain }}-domain.yml"
   roles:
     - { role: replica-streaming }
-    

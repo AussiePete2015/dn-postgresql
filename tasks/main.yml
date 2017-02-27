@@ -36,12 +36,13 @@
     register: pgdata_server_key
       
   - name: create SSL certs and keys
-    command: /bin/openssl req -nodes -newkey rsa:2048 -keyout {{ postgresql_data_dir }}/server.key -out {{ postgresql_data_dir }}/server.crt -x509 -subj "/C=US/ST=CO/L=Denver/O=DataNexus/OU=Engineering/CN=datanexus.com/emailAddress=dev@datanexus.com"
+    command: openssl req -nodes -newkey rsa:2048 -keyout {{ postgresql_data_dir }}/server.key -out {{ postgresql_data_dir }}/server.crt -x509 -subj "/C=US/ST=CO/L=Denver/O=DataNexus/OU=Engineering/CN=datanexus.com/emailAddress=dev@datanexus.com"
     become_user: "{{ postgresql_user }}"
     when: not pgdata_server_key.stat.exists
 
   - name: use server cert as the trusted root certificate (self-signing)
     command: /usr/bin/cp {{ postgresql_data_dir }}/server.crt {{ postgresql_data_dir }}/root.crt
+    become_user: "{{ postgresql_user }}"
       
   - name: ensure server.key permissions
     file:
