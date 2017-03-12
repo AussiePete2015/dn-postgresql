@@ -1,7 +1,5 @@
 # (c) 2016 DataNexus Inc.  All Rights Reserved.
 ---
-# default variables from datanexus
-
 application: postgresql
 postgresql_major_version: 9
 postgresql_minor_version: 6
@@ -22,5 +20,3 @@ postgresql_bin_path: "/usr/pgsql-{{ postgresql_major_version }}.{{ postgresql_mi
 postgresql_config_path: "{{ postgresql_data_dir }}"
 postgresql_daemon: "postgresql-{{ postgresql_major_version }}.{{ postgresql_minor_version }}"
 postgresql_interface: eth1
-#ansible_ssh_private_key_file: "{{ cloud }}-{{ hostvars[inventory_hostname].ec2_key_name }}-private-key.pem"
-proxy_env: { http_proxy: 'http://proxy.auiag.corp:8080', no_proxy: '127.0.0.*, 192.168.*', proxy_username: s103026, proxy_password: H9aNCc3b }
