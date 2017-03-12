@@ -2,9 +2,9 @@
 #
 # streaming tasks for the master
 ---
-- set_fact: replica_server={{ hostvars[inventory_hostname].groups.tag_Role_replica[0] }}
-  when: hostvars[inventory_hostname].groups.tag_Role_replica[0] is defined
-  
+#- set_fact: replica_server={{ hostvars[inventory_hostname].groups.tag_Role_replica[0] }}
+#  when: hostvars[inventory_hostname].groups.tag_Role_replica[0] is defined
+
 - block:
   - name: fetch the root cert from the master node
     fetch:
@@ -21,12 +21,14 @@
       dest: /tmp/server.key
       flat: yes
     become_user: "{{ postgresql_user }}"
-    
+
+  # this needs to be the data network on eth1  
   - name: configure replication user
     lineinfile:
       dest: "{{ postgresql_config_path }}/pg_hba.conf"
-      line: "hostssl  replication     replicator      {{ hostvars[replica_server].ansible_eth1.ipv4.address }}/32           cert clientcert=1"
+      line: "hostssl  replication     replicator      {{ hostvars[item].ansible_eth1.ipv4.address }}/32           cert clientcert=1"
     become: true
+    with_items: "{{ groups.postgresql_replica }}"
     notify: restart postgresql  
      
   - name: adding replication user
@@ -69,7 +71,7 @@
       backrefs: yes
       line: "checkpoint_segments = 8\t\t\t# in logfile segments, min 1, 16MB each"
     notify: restart postgresql
-  
+    
   - name: configure write ahead log keep segments
     lineinfile:
       dest: "{{ postgresql_config_path }}/postgresql.conf"
@@ -77,6 +79,5 @@
       backrefs: yes
       line: "wal_keep_segments = 8\t\t# in logfile segments, 16MB each; 0 disables"
     notify: restart postgresql
-
-  when: replica_server is defined
+#  when: "'postgresql_replica' in {{ group_names }}"
   become: true
