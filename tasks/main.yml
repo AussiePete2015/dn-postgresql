@@ -21,7 +21,7 @@
         [Service]
         Environment=PGDATA={{ postgresql_data_dir }}
 
-  - name: Check if PostgreSQL database is initialized
+  - name: check if PostgreSQL database is initialized
     stat:
       path: "{{ postgresql_data_dir }}/PG_VERSION"
     register: pgdata_dir_version
@@ -66,11 +66,11 @@
       line: "ssl_ca_file = 'root.crt'\t\t# (change requires restart)"
     become: true
     notify: restart postgresql
-  
-  - name: Listen on interface for data network; defaults to eth1
+    
+  - name: listen on {{ postgresql_addr }}
     lineinfile:
       dest: "{{ postgresql_config_path }}/postgresql.conf"
-      regexp: "^#listen_addresses"
+      regexp: "^#?listen_addresses"
       backrefs: yes
       line: "listen_addresses = '{{ item }}'\t# what IP address(es) to listen on;"
     with_items: "{{ postgresql_addr }}"
@@ -97,7 +97,7 @@
     with_items: "{{ postgresql_global_config_options }}"
     notify: restart postgresql
   
-  - name: Ensure PostgreSQL unix socket dirs exist
+  - name: ensure PostgreSQL unix socket dirs exist
     file:
       path: "{{ item }}"
       state: directory
@@ -106,7 +106,7 @@
       mode: 02775
     with_items: "{{ postgresql_unix_socket_directories }}"
 
-  - name: Update SE Linux enforcing mode
+  - name: update SE Linux enforcing mode
     sefcontext:
       target: "{{ postgresql_data_dir }}(/.*)?"
       setype: postgresql_db_t

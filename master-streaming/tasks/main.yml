@@ -5,64 +5,6 @@
 #- set_fact: replica_server={{ hostvars[inventory_hostname].groups.tag_Role_replica[0] }}
 #  when: hostvars[inventory_hostname].groups.tag_Role_replica[0] is defined
 
-
-#- debug: var="{{ hostvars[inventory_hostname].groups | to_nice_json }}"
-#- debug: var="{{ hostvars[inventory_hostname].groups[0].'postgresql-replica'}}"
-#- debug: msg="replica debug {{ hostvars['postgresql-master'] }}"
-
-- name: finding postgresql-replica IP
-  local_action: shell AWS_PROFILE=iagcl common-utils/inventory/aws/ec2
-  register: ec2_output
-- name: finding postgresql-master IP
-  local_action: shell NO_PROXY=auiag.corp common-utils/inventory/osp/openstack
-  register: osp_output
-- set_fact:
-    ec2_output_json: "{{ ec2_output.stdout | from_json }}"
-- set_fact: 
-    osp_output_json: "{{ osp_output.stdout | from_json }}"
-- set_fact:
-    ec2_cloud_nodes: "{{ ec2_output_json | json_query('tag_Cloud_aws') }}"
-    ec2_tenant_nodes: "{{ ec2_output_json | json_query('tag_Tenant_' + tenant) }}"
-    ec2_project_nodes: "{{ ec2_output_json | json_query('tag_Project_' + project) }}"
-    ec2_domain_nodes: "{{ ec2_output_json | json_query('tag_Domain_ProdA') }}"
-    ec2_application_nodes: "{{ ec2_output_json | json_query('tag_Application_' + application) }}"
-    ec2_role_nodes: "{{ ec2_output_json | json_query('tag_Role_replica') }}"
-- set_fact:
-    postgresql_replica_nodes: "{{ ec2_cloud_nodes | intersect(ec2_tenant_nodes) | intersect(ec2_project_nodes) | intersect(ec2_domain_nodes) | intersect(ec2_application_nodes) | intersect(ec2_role_nodes) }}"
-
-- set_fact:
-    osp_cloud_nodes: "{{ (osp_output_json | json_query('[\"meta-Cloud_osp\"]')).0 }}"
-    osp_tenant_nodes: "{{ (osp_output_json | json_query('[\"meta-Tenant_' + tenant + '\"]')).0 }}"
-    osp_project_nodes: "{{ (osp_output_json | json_query('[\"meta-Project_' + project + '\"]')).0 }}"
-    osp_domain_nodes: "{{ (osp_output_json | json_query('[\"meta-Domain_production\"]')).0 }}"
-    osp_application_nodes: "{{ (osp_output_json | json_query('[\"meta-Application_' + application + '\"]')).0 }}"
-    osp_role_nodes: "{{ (osp_output_json | json_query('[\"meta-Role_master\"]')).0 }}"            
-- set_fact:
-    postgresql_master_nodes: "{{ osp_cloud_nodes | intersect(osp_tenant_nodes) | intersect(osp_project_nodes) | intersect(osp_domain_nodes) | intersect(osp_application_nodes) | intersect(osp_role_nodes) }}"
-
-#- debug: msg="IP is {{ (osp_output_json | json_query('_meta.hostvars.["6244096e-75c8-4cbe-8b52-6c2007882aa0"]')).0.ansible_ssh_host }}"
-
-
-    
-- name: adding master to dynamic host list
-  add_host:
-    hostname: "{{ (osp_output_json | json_query('_meta.hostvars.[\"' + item + '\"]')).0.ansible_ssh_host }}"
-    ansible_ssh_private_key_file: /Users/christopher/Documents/IAG/CustomerLabs/DataEngineering/DataNexus_Platform/Source/customer-demo/osp-melbourne-1-postgresql-demo-production-private-key.pem
-    ansible_user: cloud-user
-    groups: "{{ application }}-master,osp-nodes"
-  with_items: "{{ postgresql_master_nodes }}"
-#        when: postgresql_master_nodes is defined
-- name: adding replica to dynamic host list
-  add_host:
-    hostname: "{{ item }}"
-    ansible_ssh_private_key_file: /Users/christopher/Documents/IAG/CustomerLabs/DataEngineering/DataNexus_Platform/Source/customer-demo/aws-ap-southeast-2-postgresql-demo-ProdA-private-key.pem
-    ansible_user: centos
-    groups: "{{ application }}-replica,aws-nodes"
-  with_items: "{{ postgresql_replica_nodes }}"
-      
-- set_fact: replica_server={{ postgresql_replica_nodes }}
-  when: postgresql_replica_nodes is defined
-
 - block:
   - name: fetch the root cert from the master node
     fetch:
@@ -79,20 +21,14 @@
       dest: /tmp/server.key
       flat: yes
     become_user: "{{ postgresql_user }}"
-  
-  
- # - debug: 
-#      msg: "IP is {{ hostvars[item].ansible_eth1.ipv4.address }}"
-#    with_items: "{{ postgresql_replica_nodes }}"
-    
-    
+
   # this needs to be the data network on eth1  
   - name: configure replication user
     lineinfile:
       dest: "{{ postgresql_config_path }}/pg_hba.conf"
       line: "hostssl  replication     replicator      {{ hostvars[item].ansible_eth1.ipv4.address }}/32           cert clientcert=1"
     become: true
-    with_items: "{{ replica_server }}"
+    with_items: "{{ groups.postgresql_replica }}"
     notify: restart postgresql  
      
   - name: adding replication user
@@ -135,7 +71,7 @@
       backrefs: yes
       line: "checkpoint_segments = 8\t\t\t# in logfile segments, min 1, 16MB each"
     notify: restart postgresql
-  
+    
   - name: configure write ahead log keep segments
     lineinfile:
       dest: "{{ postgresql_config_path }}/postgresql.conf"
@@ -143,6 +79,5 @@
       backrefs: yes
       line: "wal_keep_segments = 8\t\t# in logfile segments, 16MB each; 0 disables"
     notify: restart postgresql
-
-  when: replica_server is defined
+#  when: "'postgresql_replica' in {{ group_names }}"
   become: true
