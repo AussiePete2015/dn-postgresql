@@ -79,5 +79,5 @@
       backrefs: yes
       line: "wal_keep_segments = 8\t\t# in logfile segments, 16MB each; 0 disables"
     notify: restart postgresql
-#  when: "'postgresql_replica' in {{ group_names }}"
+  when: inventory_hostname in groups.postgresql_master
   become: true
