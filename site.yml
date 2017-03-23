@@ -5,78 +5,80 @@
 - name: creating openstack {{ application }} and {{ application }}-master host groups
   hosts: localhost
   vars_files:
+    - [ "{{ tenant_config_path}}/site.yml" ]
     - "vars/{{ application }}.yml"
-    - vars/tenant.yml
     - vars/osp.yml
   gather_facts: no
   tasks:
     - include_role:
         name: build-app-host-groups
       vars:
-        domain: production
+#        domain: production
         host_group_list:
           - { name: postgresql }
           - { name: postgresql, role: master }
+    
+# - name: creating AWS {{ application }} and {{ application }}-replica host groups
+#   hosts: localhost
+#   vars_files:
+#     - [ "{{ tenant_config_path}}/site.yml" ]
+#     - "vars/{{ application }}.yml"
+#     - vars/aws.yml
+#   gather_facts: no
+#   tasks:
+#     - include_role:
+#         name: build-app-host-groups
+#       vars:
+#         domain: ProdA
+#         host_group_list:
+#           - { name: postgresql }
+#           - { name: postgresql, role: replica }
 
-- name: creating AWS {{ application }} and {{ application }}-replica host groups
+- name: do some debugging
   hosts: localhost
-  vars_files:
-    - "vars/{{ application }}.yml"
-    - vars/tenant.yml
-    - vars/aws.yml   
   gather_facts: no
   tasks:
-    - include_role:
-        name: build-app-host-groups
-      vars:
-        domain: ProdA
-        host_group_list:
-          - { name: postgresql }
-          - { name: postgresql, role: replica }
-   
-- name: configure master proxy (this should get removed)
-  hosts: "{{ application }}_master"
-  vars_files:
-    - [ "{{ tenant_config_path}}/site.yml" ]
-    - vars/postgresql.yml
-  roles:
-    - { role: common-roles/setup-web-proxy, when cloud == 'osp' }
+    - debug: var=groups
+    - debug: msg="{{ inventory_hostname }}"
+#      with_items: groups
+    - debug: msg="hello"
+      when: "'postgresql_master' in groups and inventory_hostname in groups.postgresql_master"
 
-- hosts: "{{ application }}"
-  vars_files:
-    - vars/{{ application }}.yml
-    - vars/tenant.yml
-  tasks:
-    - name: configuring postgresql repo on all {{ application }} nodes
-      command: /usr/bin/yum -y reinstall https://download.postgresql.org/pub/repos/yum/{{ postgresql_major_version }}.{{ postgresql_minor_version }}/redhat/rhel-7-x86_64/pgdg-{{ ansible_distribution|lower }}{{ postgresql_major_version }}{{ postgresql_minor_version }}-{{ postgresql_major_version }}.{{ postgresql_minor_version }}-3.noarch.rpm
-      become: yes
-
-- hosts: "{{ application }}"
-  vars_files:
-    - vars/{{ application }}.yml
-  gather_facts: yes
-  roles:
-#    - { role: common-roles/add-package-repo, package_name: "pgdg96", repo_name: "PostgreSQL 9.6", repo_url: "https://download.postgresql.org/pub/repos/yum/srpms/9.6/redhat/rhel-$releasever-$basearch", repo_key_url: "file:///etc/pki/rpm-gpg/RPM-GPG-KEY-PGDG-96", when: proxy_env is defined }
-#    - { role: install-packages, package_list: ['epel-release-7-9', 'https://download.postgresql.org/pub/repos/yum/{{ postgresql_major_version }}.{{ postgresql_minor_version }}/redhat/rhel-7-x86_64/pgdg-centos{{ postgresql_major_version }}{{ postgresql_minor_version }}-{{ postgresql_major_version }}.{{ postgresql_minor_version }}-3.noarch.rpm'] }
-    - { role: install-packages, package_list: ['epel-release-7-9'], when: ansible_distribution == 'CentOS' }
-    - { role: install-packages, package_list: "{{ postgresql_package_list }}" }
-    - { role: get-iface-addr, iface_name: "{{ postgresql_interface }}" }
-    - { role: dn-postgresql, postgresql_addr: "{{ iface_addr }}" }
-
-- hosts: "{{ application }}_master"
-  gather_facts: no
-  vars_files:
-    - vars/{{ application }}.yml
-    - vars/tenant.yml
-    - "vars/{{ project }}-project.yml"
-  roles:
-    - { role: master-streaming }
-
-- hosts: "{{ application }}_replica"
-  gather_facts: no
-  vars_files:
-    - vars/{{ application }}.yml
-    - vars/tenant.yml
-    - "vars/{{ project }}-project.yml"
-  roles:
-    - { role: replica-streaming }
+# - hosts: "{{ application }}"
+#   vars_files:
+#     - vars/{{ application }}.yml
+#     - vars/tenant.yml
+#   tasks:
+#     - name: configuring postgresql repo on all {{ application }} nodes
+#       command: /usr/bin/yum -y reinstall https://download.postgresql.org/pub/repos/yum/{{ postgresql_major_version }}.{{ postgresql_minor_version }}/redhat/rhel-7-x86_64/pgdg-{{ ansible_distribution|lower }}{{ postgresql_major_version }}{{ postgresql_minor_version }}-{{ postgresql_major_version }}.{{ postgresql_minor_version }}-3.noarch.rpm
+#       become: yes
+#
+# - hosts: "{{ application }}"
+#   vars_files:
+#     - vars/{{ application }}.yml
+#   gather_facts: yes
+#   roles:
+# #    - { role: common-roles/add-package-repo, package_name: "pgdg96", repo_name: "PostgreSQL 9.6", repo_url: "https://download.postgresql.org/pub/repos/yum/srpms/9.6/redhat/rhel-$releasever-$basearch", repo_key_url: "file:///etc/pki/rpm-gpg/RPM-GPG-KEY-PGDG-96", when: proxy_env is defined }
+# #    - { role: install-packages, package_list: ['epel-release-7-9', 'https://download.postgresql.org/pub/repos/yum/{{ postgresql_major_version }}.{{ postgresql_minor_version }}/redhat/rhel-7-x86_64/pgdg-centos{{ postgresql_major_version }}{{ postgresql_minor_version }}-{{ postgresql_major_version }}.{{ postgresql_minor_version }}-3.noarch.rpm'] }
+#     - { role: install-packages, package_list: ['epel-release-7-9'], when: ansible_distribution == 'CentOS' }
+#     - { role: install-packages, package_list: "{{ postgresql_package_list }}" }
+#     - { role: get-iface-addr, iface_name: "{{ postgresql_interface }}" }
+#     - { role: dn-postgresql, postgresql_addr: "{{ iface_addr }}" }
+#
+# - hosts: "{{ application }}_master"
+#   gather_facts: no
+#   vars_files:
+#     - vars/{{ application }}.yml
+#     - vars/tenant.yml
+#     - "vars/{{ project }}-project.yml"
+#   roles:
+#     - { role: master-streaming }
+#
+# - hosts: "{{ application }}_replica"
+#   gather_facts: no
+#   vars_files:
+#     - vars/{{ application }}.yml
+#     - vars/tenant.yml
+#     - "vars/{{ project }}-project.yml"
+#   roles:
+#     - { role: replica-streaming }

@@ -2,4 +2,4 @@
 #
 # Variables that are used for all deployments in a tenant environment (proxies, extra packages per node, etc.)
 ---
-tenant: iagcl
+tenant: customerZero
