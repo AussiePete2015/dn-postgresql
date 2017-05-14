@@ -72,7 +72,7 @@
     - { role: install-packages, package_list: ['epel-release-7-9'], when: ansible_distribution == 'CentOS' }
     - { role: install-packages, package_list: "{{ postgresql_package_list }}" }
     - { role: get-iface-addr, iface_name: "{{ postgresql_interface }}" }
-    - { role: dn-postgresql, postgresql_addr: "{{ iface_addr }}" }
+    - { role: postgresql, postgresql_addr: "{{ iface_addr }}" }
 
 - hosts: "{{ application }}_master"
   gather_facts: no

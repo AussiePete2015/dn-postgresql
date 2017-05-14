@@ -3,14 +3,7 @@
 Role Name
 =========
 
-Builds a stand-alone postgresql database with SSL connectivity. If multiple servers have been provisioned and tagged with "Role:master" and "Role:replica" 
-a streaming master-replica will be provisioned.
-
-Requirements
-------------
-
-* ec2
-* boto
+Builds a stand-alone postgresql database with SSL connectivity. If multiple servers have been provisioned and tagged with "Role:master" and "Role:replica" then a streaming master-replica will be provisioned.
 
 Role Variables
 --------------
@@ -63,7 +56,7 @@ and
     
 The command that was used  during development and testing on AWS was:
 
-    AWS_PROFILE=datanexus ansible-playbook -e "project=demo application=postgresql domain=development  host_inventory=tag_Application_{{ application }} ansible_user=centos" site.yml
+    AWS_PROFILE=datanexus ansible-playbook -e "cloud=aws ec2_region=us-west-2 application=postgresql domain=development project=demo tenant=datanexus key_path=/tmp" site.yml
 
 Testing
 ----------------
