@@ -26,7 +26,7 @@
   - name: configure replication user
     lineinfile:
       dest: "{{ postgresql_config_path }}/pg_hba.conf"
-      line: "hostssl  replication     replicator      {{ hostvars[item].ansible_eth1.ipv4.address }}/32           cert clientcert=1"
+      line: "hostssl  replication     replicator      {{ hostvars[item].ansible_eth1.ipv4.address }}/32          cert clientcert=1"
     become: true
     with_items: "{{ groups.postgresql_replica }}"
     notify: restart postgresql  

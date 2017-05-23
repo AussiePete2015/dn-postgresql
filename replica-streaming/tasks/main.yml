@@ -67,12 +67,19 @@
         owner: "{{ postgresql_user }}"
         group: "{{ postgresql_group }}"
         mode: 0400
-        
+      
+    - name: copy initial database
+      command: /bin/pg_basebackup -h {{ hostvars[item].ansible_eth1.ipv4.address }} -D {{ postgresql_data_dir }} -U replicator -v -P --xlog-method=stream
+      become_user: "{{ postgresql_user }}"
+      with_items: "{{ groups.postgresql_master }}"
+      when: cloud == "aws"
+      
     - name: copy initial database
       command: /bin/pg_basebackup -h {{ hostvars[item].osp_floating_ip }} -D {{ postgresql_data_dir }} -U replicator -v -P --xlog-method=stream
       become_user: "{{ postgresql_user }}"
-      with_items: "{{ groups.postgresql_master }}"
-
+      with_items: "{{ groups.postgresql_master }}"  
+      when: cloud == "osp"
+      
     - name: Restore postgresql.conf
       command: /bin/cp /tmp/postgresql.conf {{ postgresql_config_path }}
       become_user: "{{ postgresql_user }}"
@@ -84,10 +91,24 @@
         create: yes
         block: |
           standby_mode = 'on'
+          primary_conninfo = 'host={{ hostvars[item].ansible_eth1.ipv4.address }} port=5432 user=replicator sslmode=require sslcert={{ postgresql_home_dir }}/.postgresql/postgresql.crt sslkey={{ postgresql_home_dir }}/.postgresql/postgresql.key'
+          trigger_file = '/tmp/postgresql.trigger'
+      become_user: "{{ postgresql_user }}"
+      with_items: "{{ groups.postgresql_master }}"
+      when: cloud == "aws"
+      
+    - name: build recovery file
+      blockinfile:
+        name: "{{ postgresql_config_path }}/recovery.conf"
+        mode: 0600
+        create: yes
+        block: |
+          standby_mode = 'on'
           primary_conninfo = 'host={{ hostvars[item].osp_floating_ip }} port=5432 user=replicator sslmode=require sslcert={{ postgresql_home_dir }}/.postgresql/postgresql.crt sslkey={{ postgresql_home_dir }}/.postgresql/postgresql.key'
           trigger_file = '/tmp/postgresql.trigger'
       become_user: "{{ postgresql_user }}"
       with_items: "{{ groups.postgresql_master }}"
+      when: cloud == "osp"
       
     - name: Fix SE Linux labels on {{ postgresql_data_dir }}
       command: /usr/sbin/fixfiles -F restore "{{ postgresql_data_dir }}"
