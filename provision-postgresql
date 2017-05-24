@@ -1,3 +1,4 @@
+#!/usr/bin/env ansible-playbook
 # (c) 2016 DataNexus Inc.  All Rights Reserved.
 #
 # Default manifest for installing postgresql instance(s) standalone
@@ -15,11 +16,14 @@
           "tag:Project": "{{ project }}"
           "tag:Tenant": "{{ tenant }}"
       register: postgresql_instances
-
+      when:
+        - cloud == 'aws'
+      
     - name: building {{ application }} host group
       add_host: hostname="{{ item }}" groupname="{{ application }}" ansible_ssh_private_key_file="{{ key_path }}/{{ cloud }}-{{ ec2_region }}-{{ application }}-{{ project }}-{{ domain }}-private-key.pem"
       with_items: "{{ postgresql_instances.instances|map(attribute='private_ip_address')|list }}"
       when:
+        - cloud == 'aws'
         - postgresql_instances.instances|length > 0
 
 - name: discovering all {{ application }}_master nodes
@@ -35,11 +39,14 @@
           "tag:Tenant": "{{ tenant }}"
           "tag:Role": master
       register: postgresql_master_instances
+      when:
+        - cloud == 'aws'
 
     - name: building {{ application }}_master host group
       add_host: hostname="{{ item }}" groupname="{{ application }}_master" ansible_ssh_private_key_file="{{ key_path }}/{{ cloud }}-{{ ec2_region }}-{{ application }}-{{ project }}-{{ domain }}-private-key.pem"
       with_items: "{{ postgresql_master_instances.instances|map(attribute='private_ip_address')|list }}"
       when:
+        - cloud == 'aws'
         - postgresql_master_instances.instances|length > 0
 
 - name: discovering all {{ application }}_replica nodes
@@ -55,21 +62,25 @@
           "tag:Tenant": "{{ tenant }}"
           "tag:Role": replica
       register: postgresql_replica_instances
+      when:
+        - cloud == 'aws'
       
     - name:  building {{ application }}_replica host group
       add_host: hostname="{{ item }}" groupname="{{ application }}_replica" ansible_ssh_private_key_file="{{ key_path }}/{{ cloud }}-{{ ec2_region }}-{{ application }}-{{ project }}-{{ domain }}-private-key.pem"
       with_items: "{{ postgresql_replica_instances.instances|map(attribute='private_ip_address')|list }}"
       when:
+        - cloud == 'aws'
         - postgresql_instances.instances|length > 0
-        
+      
 - name: install base configuration for {{ application }}
   hosts: "{{ application }}"
   vars_files:
       - vars/{{ application }}.yml
+      - "{{ tenant_config_path }}/blueprints/{{ tenant }}/tenant/site.yml"
   gather_facts: yes
   roles:
     - { role: install-packages, package_list: ['https://download.postgresql.org/pub/repos/yum/{{ postgresql_major_version }}.{{ postgresql_minor_version }}/redhat/rhel-7-x86_64/pgdg-{{ ansible_distribution|lower }}{{ postgresql_major_version }}{{ postgresql_minor_version }}-{{ postgresql_major_version }}.{{ postgresql_minor_version }}-3.noarch.rpm'] }
-    - { role: install-packages, package_list: ['epel-release-7-9'], when: ansible_distribution == 'CentOS' }
+    - { role: install-packages, package_list: ['epel-release-7-9'], when: ansible_distribution == 'CentOS' or ansible_distribution == 'RedHat' }
     - { role: install-packages, package_list: "{{ postgresql_package_list }}" }
     - { role: get-iface-addr, iface_name: "{{ postgresql_interface }}" }
     - { role: postgresql, postgresql_addr: "{{ iface_addr }}" }
