@@ -1,7 +1,7 @@
 #!/usr/bin/env ansible-playbook
 # (c) 2016 DataNexus Inc.  All Rights Reserved.
 #
-# Default manifest for installing postgresql instance(s) standalone
+# Default manifest for installing postgresql instances based on tagged role
 ---
 # do the auto discovery first as we use all the nodes for master/replica configuration
 - name: discovering all {{ application }} nodes
@@ -20,7 +20,7 @@
         - cloud == 'aws'
       
     - name: building {{ application }} host group
-      add_host: hostname="{{ item }}" groupname="{{ application }}" ansible_ssh_private_key_file="{{ key_path }}/{{ cloud }}-{{ ec2_region }}-{{ application }}-{{ project }}-{{ domain }}-private-key.pem"
+      add_host: hostname="{{ item }}" groupname="{{ application }}" ansible_ssh_private_key_file="{{ key_path }}/{{ cloud }}-{{ ec2_region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem"
       with_items: "{{ postgresql_instances.instances|map(attribute='private_ip_address')|list }}"
       when:
         - cloud == 'aws'
@@ -82,8 +82,7 @@
     - { role: install-packages, package_list: ['https://download.postgresql.org/pub/repos/yum/{{ postgresql_major_version }}.{{ postgresql_minor_version }}/redhat/rhel-7-x86_64/pgdg-{{ ansible_distribution|lower }}{{ postgresql_major_version }}{{ postgresql_minor_version }}-{{ postgresql_major_version }}.{{ postgresql_minor_version }}-3.noarch.rpm'] }
     - { role: install-packages, package_list: ['epel-release-7-9'], when: ansible_distribution == 'CentOS' or ansible_distribution == 'RedHat' }
     - { role: install-packages, package_list: "{{ postgresql_package_list }}" }
-    - { role: get-iface-addr, iface_name: "{{ postgresql_interface }}" }
-    - { role: postgresql, postgresql_addr: "{{ iface_addr }}" }
+    - { role: postgresql }
 
 - hosts: "{{ application }}_master"
   gather_facts: no
