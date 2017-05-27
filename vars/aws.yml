@@ -1,6 +1,0 @@
-# (c) 2016 DataNexus Inc.  All Rights Reserved.
-#
-# Variables that are used for all deployments (split apart by cloud type: 'aws', 'openstack', etc.)
----
-cloud: aws
-ansible_user: centos

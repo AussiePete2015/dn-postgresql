@@ -19,4 +19,3 @@ postgresql_home_dir: "/var/lib/pgsql"
 postgresql_bin_path: "/usr/pgsql-{{ postgresql_major_version }}.{{ postgresql_minor_version }}/bin"
 postgresql_config_path: "{{ postgresql_data_dir }}"
 postgresql_daemon: "postgresql-{{ postgresql_major_version }}.{{ postgresql_minor_version }}"
-postgresql_interface: eth1
