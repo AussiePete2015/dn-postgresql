@@ -54,9 +54,9 @@ and
     DOMAIN is the domain: development or production or similar
     USER is the instance login, ec2-user, redhat, centos, etc
     
-The command that was used  during development and testing on AWS was:
+The command that was used  during development and testing on OSP was:
 
-    AWS_PROFILE=datanexus ansible-playbook -e "cloud=aws ec2_region=us-west-2 application=postgresql domain=development project=demo tenant=datanexus key_path=/tmp" site.yml
+    AWS_PROFILE=datanexus ./provision-postgresql -i inventory -e "cloud=osp ec2_region=regionOne application=postgresql domain=development project=demo tenant=dev key_path=/tmp ansible_user=cloud-user tenant_config_path=../"
 
 Testing
 ----------------
