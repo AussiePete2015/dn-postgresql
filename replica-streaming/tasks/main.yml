@@ -9,7 +9,15 @@
     - name: Preserve postgresql.conf
       command: /bin/cp {{ postgresql_config_path }}/postgresql.conf /tmp
       become_user: "{{ postgresql_user }}"
+    
+    - name: preserve CA cert
+      command: /bin/cp {{ postgresql_data_dir }}/ca-cert.pem /tmp
+      become_user: "{{ postgresql_user }}"
 
+    - name: preserve CA key
+      command: /bin/cp {{ postgresql_data_dir }}/ca-key.pem /tmp
+      become_user: "{{ postgresql_user }}"
+      
     - name: Remove data directory in preparation for streaming
       file:
         path: "{{ postgresql_data_dir }}"  
@@ -41,24 +49,16 @@
       become_user: "{{ postgresql_user }}"
       when: not pghome_key.stat.exists
 
-    - name: upload the master signing cert
-      copy: 
-        src: /tmp/root.crt
-        dest: "{{ postgresql_home_dir }}/.postgresql/root.crt"
-        owner: "{{ postgresql_user }}"
-        group: "{{ postgresql_group }}"
-        mode: 0400
-    
-    - name: upload the master server key
-      copy: 
-        src: /tmp/server.key
-        dest: /var/lib/pgsql/server.key
-        owner: "{{ postgresql_user }}"
-        group: "{{ postgresql_group }}"
-        mode: 0400
+    - name: restoring CA cert
+      command: /bin/mv /tmp/ca-cert.pem {{ postgresql_home_dir }}/.postgresql/ca-cert.pem
+      become_user: "{{ postgresql_user }}"
+
+    - name: restoring CA key
+      command: /bin/mv /tmp/ca-key.pem /var/lib/pgsql/ca-key.pem
+      become_user: "{{ postgresql_user }}"
         
     - name: sign replica key
-      command: /bin/openssl x509 -req -in {{ postgresql_home_dir }}/postgresql.csr -CA "{{ postgresql_home_dir }}/.postgresql/root.crt" -CAkey {{ postgresql_home_dir }}/server.key -out {{ postgresql_home_dir }}/.postgresql/postgresql.crt -CAcreateserial
+      command: /bin/openssl x509 -req -in {{ postgresql_home_dir }}/postgresql.csr -CA "{{ postgresql_home_dir }}/.postgresql/ca-cert.pem" -CAkey /var/lib/pgsql/ca-key.pem -out {{ postgresql_home_dir }}/.postgresql/postgresql.crt -CAcreateserial
       become_user: "{{ postgresql_user }}"
 
     - name: ensure replica key permissions
@@ -66,7 +66,7 @@
         path: "{{ postgresql_home_dir }}/.postgresql/postgresql.key"
         owner: "{{ postgresql_user }}"
         group: "{{ postgresql_group }}"
-        mode: 0400
+        mode: 0600
       
     - name: copy initial database
       command: /bin/pg_basebackup -h {{ hostvars[item].ansible_eth1.ipv4.address }} -D {{ postgresql_data_dir }} -U replicator -v -P --xlog-method=stream

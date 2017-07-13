@@ -6,22 +6,6 @@
 #  when: hostvars[inventory_hostname].groups.tag_Role_replica[0] is defined
 
 - block:
-  - name: fetch the root cert from the master node
-    fetch:
-      src: "{{ postgresql_data_dir }}/root.crt"
-      fail_on_missing: yes
-      dest: /tmp/root.crt
-      flat: yes
-    become_user: "{{ postgresql_user }}"
-
-  - name: fetch the key from the master node
-    fetch:
-      src: "{{ postgresql_data_dir }}/server.key"
-      fail_on_missing: yes
-      dest: /tmp/server.key
-      flat: yes
-    become_user: "{{ postgresql_user }}"
-
   # this needs to be the data network on eth1  
   - name: configure replication user
     lineinfile:

@@ -3,6 +3,41 @@
 #
 # Default manifest for installing postgresql instances based on tagged role
 ---
+- name: discovering shaw
+  hosts: localhost
+  tasks:
+    - ec2_remote_facts:
+        region: "{{ ec2_region }}"
+        filters:
+          instance-state-name: running
+          "tag:Application": shaw
+          "tag:Domain": "{{ domain }}"
+          "tag:Project": "{{ project }}"
+          "tag:Tenant": "{{ tenant }}"
+      register: shaw_instances
+      when:
+        - cloud == 'aws'
+
+    - name: building shaw host group
+      add_host: hostname="{{ item }}" groupname=shaw ansible_ssh_private_key_file="{{ key_path }}/{{ cloud }}-{{ ec2_region }}-{{ project }}-shaw-{{ domain }}-private-key.pem"
+      with_items: "{{ shaw_instances.instances|map(attribute='private_ip_address')|list }}"
+      when:
+        - shaw_instances.instances|length > 0
+
+- name: fetching CA certs from shaw
+  hosts: shaw
+  gather_facts: yes
+  tasks:
+    - name: fetching kafka broker keystore
+      fetch:
+        src: "/etc/tls/datanexus/ca/{{ item }}"
+        dest: "{{ key_path}}/{{ item }}"
+        flat: yes
+      with_items:
+        - ca-cert.pem
+        - ca-key.pem
+      become: true
+      
 # do the auto discovery first as we use all the nodes for master/replica configuration
 - name: discovering all {{ application }} nodes
   hosts: localhost

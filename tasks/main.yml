@@ -3,7 +3,7 @@
 # Facts configuration.
 - include: facts.yml
 - include: interface-facts.yml
-
+    
 - block:
   - name: set PostgreSQL environment variables
     template:
@@ -29,27 +29,22 @@
   - name: initialize {{ postgresql_data_dir }}
     command: "{{ postgresql_bin_path }}/postgresql{{ postgresql_major_version }}{{ postgresql_minor_version }}-setup initdb"
     when: not pgdata_dir_version.stat.exists
-    
+  
+  - name: distributing CA certificates to all cluster nodes
+    copy:
+      src:  "{{ key_path }}/{{ item }}"
+      dest: "{{ postgresql_data_dir }}"
+      owner: "{{ postgresql_user }}"
+      group: "{{ postgresql_user }}"
+      mode: 0600
+    with_items:
+      - ca-cert.pem
+      - ca-key.pem
+        
   - name: check if certs are present
     stat:
-      path: "{{ postgresql_data_dir}}/server.key"
+      path: "{{ postgresql_data_dir}}/ca-key.key"
     register: pgdata_server_key
-      
-  - name: create SSL certs and keys
-    command: openssl req -nodes -newkey rsa:2048 -keyout {{ postgresql_data_dir }}/server.key -out {{ postgresql_data_dir }}/server.crt -x509 -subj "/C=US/ST=CO/L=Denver/O=DataNexus/OU=Engineering/CN=datanexus.com/emailAddress=dev@datanexus.com"
-    become_user: "{{ postgresql_user }}"
-    when: not pgdata_server_key.stat.exists
-
-  - name: use server cert as the trusted root certificate (self-signing)
-    command: /usr/bin/cp {{ postgresql_data_dir }}/server.crt {{ postgresql_data_dir }}/root.crt
-    become_user: "{{ postgresql_user }}"
-      
-  - name: ensure server.key permissions
-    file:
-      path: "{{ postgresql_data_dir }}/server.key"
-      owner: "{{ postgresql_user }}"
-      group: "{{ postgresql_group }}"
-      mode: 0400
     
   - name: turn on SSL
     lineinfile:
@@ -58,12 +53,28 @@
       backrefs: yes
       line: "ssl = on\t\t\t\t# (change requires restart)"
   
+  - name: configuring postgresql SSL cert file
+    lineinfile:
+      dest: "{{ postgresql_config_path }}/postgresql.conf"
+      regexp: "^#ssl_cert_file ="
+      backrefs: yes
+      line: "ssl_cert_file = 'ca-cert.pem'\t\t# (change requires restart)"
+    become: true
+  
+  - name: configuring postgresql SSL key file
+    lineinfile:
+      dest: "{{ postgresql_config_path }}/postgresql.conf"
+      regexp: "^#ssl_key_file ="
+      backrefs: yes
+      line: "ssl_key_file = 'ca-key.pem'\t\t# (change requires restart)"
+    become: true
+  
   - name: configure CA root certificate
     lineinfile:
       dest: "{{ postgresql_config_path }}/postgresql.conf"
       regexp: "^#ssl_ca_file ="
       backrefs: yes
-      line: "ssl_ca_file = 'root.crt'\t\t# (change requires restart)"
+      line: "ssl_ca_file = 'ca-cert.pem'\t\t# (change requires restart)"
     become: true
     notify: restart postgresql
 
@@ -119,7 +130,7 @@
     systemd: "name={{ postgresql_daemon }} state=started enabled=True"
   
   # Configure PostgreSQL.
-  - name: Ensure PostgreSQL databases are present
+  - name: ensuring initial PostgreSQL databases are present
     postgresql_db:
       name: "{{ item.name }}"
       lc_collate: "{{ item.lc_collate | default('en_US.UTF-8') }}"
@@ -135,7 +146,7 @@
     with_items: "{{ postgresql_databases }}"
     become_user: "{{ postgresql_user }}"
 
-  - name: Ensure PostgreSQL users are present
+  - name: ensuring initial PostgreSQL users are present
     postgresql_user:
       name: "{{ item.name }}"
       password: "{{ item.password | default(omit) }}"
