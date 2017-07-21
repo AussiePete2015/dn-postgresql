@@ -40,12 +40,15 @@
       line: "wal_level = hot_standby\t\t\t# minimal, archive, or hot_standby"
     notify: restart postgresql
 
+  # max_wal_senders should be four times the total number of replicas 
+  - set_fact: wal_senders={{ groups['postgresql_replica'] | length * 4 }}  
+  
   - name: configure write ahead log senders
     lineinfile:
       dest: "{{ postgresql_config_path }}/postgresql.conf"
       regexp: "^#max_wal_senders"
       backrefs: yes
-      line: "max_wal_senders = 3\t\t# max number of walsender processes"
+      line: "max_wal_senders = {{ wal_senders }} \t\t# max number of walsender processes"
     notify: restart postgresql
 
   - name: configure checkpoint segments
