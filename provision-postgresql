@@ -39,8 +39,10 @@
       become: true
       
 # do the auto discovery first as we use all the nodes for master/replica configuration
-- name: discovering all {{ application }} nodes
+- name: discovering all postgresql nodes
   hosts: localhost
+  vars_files:
+      - vars/postgresql.yml
   tasks:
     - ec2_remote_facts:
         region: "{{ ec2_region }}"
@@ -61,8 +63,10 @@
         - cloud == 'aws'
         - postgresql_instances.instances|length > 0
 
-- name: discovering all {{ application }}_master nodes
+- name: discovering all postgresql_master nodes
   hosts: localhost
+  vars_files:
+      - vars/postgresql.yml
   tasks:
     - ec2_remote_facts:
         region: "{{ ec2_region }}"
@@ -84,8 +88,10 @@
         - cloud == 'aws'
         - postgresql_master_instances.instances|length > 0
 
-- name: discovering all {{ application }}_replica nodes
+- name: discovering all postgresql_replica nodes
   hosts: localhost
+  vars_files:
+      - vars/postgresql.yml
   tasks:    
     - ec2_remote_facts:
         region: "{{ ec2_region }}"
@@ -108,9 +114,9 @@
         - postgresql_instances.instances|length > 0
       
 - name: install base configuration for {{ application }}
-  hosts: "{{ application }}"
+  hosts: postgresql
   vars_files:
-      - vars/{{ application }}.yml
+      - vars/postgresql.yml
       - "{{ tenant_config_path }}/config/site.yml"
   gather_facts: yes
   roles:
@@ -119,17 +125,17 @@
     - { role: install-packages, package_list: "{{ postgresql_package_list }}" }
     - { role: postgresql }
 
-- hosts: "{{ application }}_master"
+- hosts: postgresql_master
   gather_facts: no
   vars_files:
-    - vars/{{ application }}.yml
+    - vars/postgresql.yml
   roles:
     - { role: master-streaming }
     
-- hosts: "{{ application }}_replica"
+- hosts: postgresql_replica
   gather_facts: no
   vars_files:
-    - vars/{{ application }}.yml
+    - vars/postgresql.yml
   roles:
     - { role: replica-streaming }
 
